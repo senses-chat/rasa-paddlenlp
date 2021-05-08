@@ -12,12 +12,55 @@ class PaddleNLPTokenizer(Tokenizer):
     """PaddleNLP Transformers-based tokenizer."""
 
     defaults = {
-        "model_name": "bert-wwm-ext-chinese",
+        "model_name": "bert",
+        "model_weights": "bert-wwm-ext-chinese",
     }
 
     def __init__(self, component_config: Dict[Text, Any] = None) -> None:  # noqa: D107
         super().__init__(component_config)
-        self.tokenizer = BertTokenizer.from_pretrained(self.component_config["model_name"])
+        self._load_model_metadata()
+        self._load_model_instance()
+
+    def _load_model_metadata(self) -> None:
+        """Load the metadata for the specified model and sets these properties.
+
+        This includes the model name, model weights, cache directory and the
+        maximum sequence length the model can handle.
+        """
+        from .paddlenlp_registry import (
+            model_class_dict,
+            model_weights_defaults,
+        )
+
+        self.model_name = self.component_config["model_name"]
+
+        if self.model_name not in model_class_dict:
+            raise KeyError(
+                f"'{self.model_name}' not a valid model name. Choose from "
+                f"{str(list(model_class_dict.keys()))} or create"
+                f"a new class inheriting from this class to support your model."
+            )
+
+        self.model_weights = self.component_config["model_weights"]
+
+        if not self.model_weights:
+            logger.info(
+                f"Model weights not specified. Will choose default model "
+                f"weights: {model_weights_defaults[self.model_name]}"
+            )
+            self.model_weights = model_weights_defaults[self.model_name]
+
+    def _load_model_instance(self) -> None:
+        """Try loading the model instance.
+        """
+
+        from .paddlenlp_registry import (
+            model_tokenizer_dict,
+        )
+
+        logger.debug(f"Loading Tokenizer for {self.model_name}")
+
+        self.tokenizer = model_tokenizer_dict[self.model_name].from_pretrained(self.model_weights)
 
     @classmethod
     def required_packages(cls) -> List[Text]:  # noqa: D102

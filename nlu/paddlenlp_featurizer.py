@@ -57,9 +57,6 @@ class PaddleNLPFeaturizer(DenseFeaturizer):
         "model_name": "bert",
         # Pre-Trained weights to be loaded(string)
         "model_weights": "bert-wwm-ext-chinese",
-        # an optional path to a specific directory to download
-        # and cache the pre-trained model weights.
-        "cache_dir": None,
     }
 
     @classmethod
@@ -150,7 +147,6 @@ class PaddleNLPFeaturizer(DenseFeaturizer):
             )
 
         self.model_weights = self.component_config["model_weights"]
-        self.cache_dir = self.component_config["cache_dir"]
 
         if not self.model_weights:
             logger.info(
