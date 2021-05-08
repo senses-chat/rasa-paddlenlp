@@ -57,6 +57,8 @@ class PaddleNLPFeaturizer(DenseFeaturizer):
         "model_name": "bert",
         # Pre-Trained weights to be loaded(string)
         "model_weights": "bert-wwm-ext-chinese",
+        "intent_tokenization_flag": False,
+        "intent_split_symbol": "_",
     }
 
     @classmethod
