@@ -1,0 +1,16 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+paddlepaddle = "==2.0.2"
+paddlenlp = "==2.0.0rc20"
+rasa = "==2.6.0"
+wechaty = "==0.8.3"
+wechatpy = "==1.8.15"
+
+[dev-packages]
+
+[requires]
+python_version = "3.7"

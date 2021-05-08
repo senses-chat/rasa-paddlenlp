@@ -1,0 +1,16 @@
+*.zip
+
+/bert-models
+/models
+/cache
+
+__pycache__
+
+.DS_Store
+.vscode
+/browsercache
+
+*.db*
+
+/data
+/*.yml
