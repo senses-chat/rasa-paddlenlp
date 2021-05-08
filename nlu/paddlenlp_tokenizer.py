@@ -12,7 +12,7 @@ class PaddleNLPTokenizer(Tokenizer):
     """PaddleNLP Transformers-based tokenizer."""
 
     defaults = {
-        "model_name": "bert-wwm-chinese",
+        "model_name": "bert-wwm-ext-chinese",
     }
 
     def __init__(self, component_config: Dict[Text, Any] = None) -> None:  # noqa: D107

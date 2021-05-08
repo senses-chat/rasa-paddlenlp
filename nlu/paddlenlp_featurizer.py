@@ -22,7 +22,6 @@ from rasa.nlu.constants import (
     NO_LENGTH_RESTRICTION,
     NUMBER_OF_SUB_TOKENS,
     TOKENS_NAMES,
-    LANGUAGE_MODEL_DOCS,
 )
 from rasa.shared.nlu.constants import (
     TEXT,
@@ -503,18 +502,12 @@ class PaddleNLPFeaturizer(DenseFeaturizer):
         """Feed the padded batch to the language model.
 
         Args:
-            batch_attention_mask: Mask of 0s and 1s which indicate whether the token
-            is a padding token or not.
             padded_token_ids: Batch of token ids for each example. The batch is padded
             and hence can be fed at once.
 
         Returns:
             Sequence level representations from the language model.
         """
-
-        # model_outputs = self.model(
-        #     paddle.to_tensor(padded_token_ids), attention_mask=paddle.to_tensor(batch_attention_mask, dtype='float32')
-        # )
 
         model_outputs = self.model(paddle.to_tensor(padded_token_ids))
 
@@ -726,19 +719,6 @@ class PaddleNLPFeaturizer(DenseFeaturizer):
         Returns:
             List of language model docs for each message in batch.
         """
-        hf_transformers_doc = batch_examples[0].get(LANGUAGE_MODEL_DOCS[attribute])
-        if hf_transformers_doc:
-            # This should only be the case if the deprecated
-            # HFTransformersNLP component is used in the pipeline
-            # TODO: remove this when HFTransformersNLP is removed for good
-            logging.debug(
-                f"'{LANGUAGE_MODEL_DOCS[attribute]}' set: this "
-                f"indicates you're using the deprecated component "
-                f"HFTransformersNLP, please remove it from your "
-                f"pipeline."
-            )
-            return [ex.get(LANGUAGE_MODEL_DOCS[attribute]) for ex in batch_examples]
-
         batch_tokens, batch_token_ids = self._get_token_ids_for_batch(
             batch_examples, attribute
         )
