@@ -42,6 +42,7 @@ MAX_SEQUENCE_LENGTHS = {
 
 logger = logging.getLogger(__name__)
 
+paddle.disable_static()
 
 class PaddleNLPFeaturizer(DenseFeaturizer):
     """Featurizer using PaddleNLP transformer-based language models.
@@ -179,6 +180,8 @@ class PaddleNLPFeaturizer(DenseFeaturizer):
 
         self.tokenizer = model_tokenizer_dict[self.model_name].from_pretrained(self.model_weights)
         self.model = model_class_dict[self.model_name].from_pretrained(self.model_weights)
+        # set it to evaluation mode, to eliminate dropouts
+        self.model.eval()
 
         self.pad_token_id = self.model.pad_token_id
 
@@ -495,7 +498,9 @@ class PaddleNLPFeaturizer(DenseFeaturizer):
         return np.array(nonpadded_sequence_embeddings)
 
     def _compute_batch_sequence_features(
-        self, padded_token_ids: List[List[int]]
+        self,
+        padded_token_ids: List[List[int]],
+        batch_attention_mask: List[List[int]],
     ) -> np.ndarray:
         """Feed the padded batch to the language model.
 
@@ -507,12 +512,19 @@ class PaddleNLPFeaturizer(DenseFeaturizer):
             Sequence level representations from the language model.
         """
 
-        model_outputs = self.model(paddle.to_tensor(padded_token_ids))
+        # https://github.com/PaddlePaddle/PaddleNLP/issues/1224
+        attention_mask = [[[mask]] for mask in batch_attention_mask]
+
+        model_outputs = self.model(
+            input_ids=paddle.to_tensor(padded_token_ids),
+            attention_mask=paddle.to_tensor(attention_mask),
+        )
 
         # sequence hidden states is always the first output from all models
         sequence_hidden_states = model_outputs[0]
 
         sequence_hidden_states = sequence_hidden_states.numpy()
+
         return sequence_hidden_states
 
     def _validate_sequence_lengths(
@@ -650,13 +662,14 @@ class PaddleNLPFeaturizer(DenseFeaturizer):
 
         # Compute attention mask based on actual_sequence_length
         # (it is not needed for paddle because we are using the pad_token_id from model directly)
-        # batch_attention_mask = self._compute_attention_mask(
-        #     actual_sequence_lengths, max_input_sequence_length
-        # )
+        batch_attention_mask = self._compute_attention_mask(
+            actual_sequence_lengths, max_input_sequence_length
+        )
 
         # Get token level features from the model
         sequence_hidden_states = self._compute_batch_sequence_features(
-            padded_token_ids
+            padded_token_ids,
+            batch_attention_mask,
         )
 
         # Extract features for only non-padding tokens
