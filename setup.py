@@ -21,14 +21,13 @@ test_requirements = [ ]
 setup(
     author="Simon Liang",
     author_email='simon@x-tech.io',
-    python_requires='>=3.6',
+    python_requires='>=3.7',
     classifiers=[
         'Development Status :: 2 - Pre-Alpha',
         'Intended Audience :: Developers',
         'License :: OSI Approved :: MIT License',
         'Natural Language :: English',
         'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.6',
         'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
     ],
@@ -44,6 +43,6 @@ setup(
     test_suite='tests',
     tests_require=test_requirements,
     url='https://github.com/botisan-ai/rasa-paddlenlp',
-    version='0.2.0',
+    version='0.3.0',
     zip_safe=False,
 )

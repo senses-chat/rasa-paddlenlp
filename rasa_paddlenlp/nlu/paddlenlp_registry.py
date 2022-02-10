@@ -1,4 +1,11 @@
-from paddlenlp.transformers import BertModel, BertTokenizer
+from paddlenlp.transformers import (
+    BertModel,
+    BertTokenizer,
+    XLNetModel,
+    XLNetTokenizer,
+    RobertaModel,
+    RobertaTokenizer,
+)
 
 # these seems to be useful still, keeping
 from rasa.nlu.utils.hugging_face.transformers_pre_post_processors import (
@@ -48,12 +55,18 @@ model_embeddings_post_processors = {
 
 model_class_dict = {
     "bert": BertModel,
+    "xlnet": XLNetModel,
+    "roberta": RobertaModel,
 }
 
 model_tokenizer_dict = {
     "bert": BertTokenizer,
+    "xlnet": XLNetTokenizer,
+    "roberta": RobertaTokenizer,
 }
 
 model_weights_defaults = {
-    "bert": "bert-wwm-chinese",
+    "bert": "bert-wwm-ext-chinese",
+    "xlnet": "chinese-xlnet-base",
+    "roberta": "roberta-wwm-ext",
 }
