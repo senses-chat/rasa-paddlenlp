@@ -12,8 +12,16 @@ class PaddleNLPTokenizer(Tokenizer):
     """PaddleNLP Transformers-based tokenizer."""
 
     defaults = {
+        # name of the language model to load.
         "model_name": "bert",
+        # Pre-Trained weights to be loaded(string)
         "model_weights": "bert-wwm-ext-chinese",
+        # Flag to check whether to split intents
+        "intent_tokenization_flag": False,
+        # Symbol on which intent should be split
+        "intent_split_symbol": "_",
+        # Regular expression to detect tokens
+        "token_pattern": None,
     }
 
     def __init__(self, component_config: Dict[Text, Any] = None) -> None:  # noqa: D107

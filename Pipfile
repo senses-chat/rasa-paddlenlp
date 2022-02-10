@@ -4,11 +4,11 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
-rasa = ">=2.8,<3"
-paddlepaddle = "==2.2.1"
-paddlenlp = "==2.2.3"
+rasa = ">=3"
+paddlepaddle = "==2.2.2"
+paddlenlp = "==2.2.4"
 
 [dev-packages]
 
 [requires]
-python_version = "3.8.6"
+python_version = "3.8.11"

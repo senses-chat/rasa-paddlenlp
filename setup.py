@@ -11,9 +11,9 @@ with open('HISTORY.md') as history_file:
     history = history_file.read()
 
 requirements = [
-    'rasa>=2.8,<3',
-    'paddlepaddle==2.2.1',
-    'paddlenlp==2.2.3',
+    'rasa>=3',
+    'paddlepaddle==2.2.2',
+    'paddlenlp==2.2.4',
 ]
 
 test_requirements = [ ]
