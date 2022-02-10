@@ -3,7 +3,7 @@ import numpy as np
 import logging
 
 from typing import Any, Text, List, Dict, Tuple, Type
-import tensorflow as tf
+import paddle
 
 from rasa.engine.graph import ExecutionContext, GraphComponent
 from rasa.engine.recipes.default_recipe import DefaultV1Recipe
@@ -26,6 +26,8 @@ from rasa.utils import train_utils
 
 logger = logging.getLogger(__name__)
 
+paddle.disable_static()
+
 MAX_SEQUENCE_LENGTHS = {
     "bert": 512,
     "gpt": 512,
@@ -39,11 +41,11 @@ MAX_SEQUENCE_LENGTHS = {
 @DefaultV1Recipe.register(
     DefaultV1Recipe.ComponentType.MESSAGE_FEATURIZER, is_trainable=False
 )
-class LanguageModelFeaturizer(DenseFeaturizer, GraphComponent):
+class PaddleNLPFeaturizer(DenseFeaturizer, GraphComponent):
     """A featurizer that uses transformer-based language models.
     This component loads a pre-trained language model
-    from the Transformers library (https://github.com/huggingface/transformers)
-    including BERT, GPT, GPT-2, xlnet, distilbert, and roberta.
+    from the PaddleNLP library (https://github.com/PaddlePaddle/PaddleNLP)
+    including BERT, ERNIE, ALBERT, xlnet, and roberta.
     It also tokenizes and featurizes the featurizable dense attributes of
     each message.
     """
@@ -57,7 +59,7 @@ class LanguageModelFeaturizer(DenseFeaturizer, GraphComponent):
         self, config: Dict[Text, Any], execution_context: ExecutionContext
     ) -> None:
         """Initializes the featurizer with the model in the config."""
-        super(LanguageModelFeaturizer, self).__init__(
+        super(PaddleNLPFeaturizer, self).__init__(
             execution_context.node_name, config
         )
         self._load_model_metadata()
@@ -65,16 +67,13 @@ class LanguageModelFeaturizer(DenseFeaturizer, GraphComponent):
 
     @staticmethod
     def get_default_config() -> Dict[Text, Any]:
-        """Returns LanguageModelFeaturizer's default config."""
+        """Returns PaddleNLPFeaturizer's default config."""
         return {
             **DenseFeaturizer.get_default_config(),
             # name of the language model to load.
             "model_name": "bert",
             # Pre-Trained weights to be loaded(string)
-            "model_weights": None,
-            # an optional path to a specific directory to download
-            # and cache the pre-trained model weights.
-            "cache_dir": None,
+            "model_weights": "bert-wwm-ext-chinese",
         }
 
     @classmethod
@@ -89,8 +88,8 @@ class LanguageModelFeaturizer(DenseFeaturizer, GraphComponent):
         model_storage: ModelStorage,
         resource: Resource,
         execution_context: ExecutionContext,
-    ) -> LanguageModelFeaturizer:
-        """Creates a LanguageModelFeaturizer.
+    ) -> PaddleNLPFeaturizer:
+        """Creates a PaddleNLPFeaturizer.
         Loads the model specified in the config.
         """
         return cls(config, execution_context)
@@ -98,14 +97,14 @@ class LanguageModelFeaturizer(DenseFeaturizer, GraphComponent):
     @staticmethod
     def required_packages() -> List[Text]:
         """Returns the extra python dependencies required."""
-        return ["transformers"]
+        return ["paddlenlp", "paddle"]
 
     def _load_model_metadata(self) -> None:
         """Loads the metadata for the specified model and set them as properties.
-        This includes the model name, model weights, cache directory and the
+        This includes the model name, model weights and the
         maximum sequence length the model can handle.
         """
-        from rasa.nlu.utils.hugging_face.registry import (
+        from .paddlenlp_registry import (
             model_class_dict,
             model_weights_defaults,
         )
@@ -120,7 +119,6 @@ class LanguageModelFeaturizer(DenseFeaturizer, GraphComponent):
             )
 
         self.model_weights = self._config["model_weights"]
-        self.cache_dir = self._config["cache_dir"]
 
         if not self.model_weights:
             logger.info(
@@ -136,7 +134,7 @@ class LanguageModelFeaturizer(DenseFeaturizer, GraphComponent):
         Model loading should be skipped in unit tests.
         See unit tests for examples.
         """
-        from rasa.nlu.utils.hugging_face.registry import (
+        from .paddlenlp_registry import (
             model_class_dict,
             model_tokenizer_dict,
         )
@@ -144,19 +142,16 @@ class LanguageModelFeaturizer(DenseFeaturizer, GraphComponent):
         logger.debug(f"Loading Tokenizer and Model for {self.model_name}")
 
         self.tokenizer = model_tokenizer_dict[self.model_name].from_pretrained(
-            self.model_weights, cache_dir=self.cache_dir
+            self.model_weights
         )
         self.model = model_class_dict[self.model_name].from_pretrained(
-            self.model_weights, cache_dir=self.cache_dir
+            self.model_weights
         )
 
-        # Use a universal pad token since all transformer architectures do not have a
-        # consistent token. Instead of pad_token_id we use unk_token_id because
-        # pad_token_id is not set for all architectures. We can't add a new token as
-        # well since vocabulary resizing is not yet supported for TF classes.
-        # Also, this does not hurt the model predictions since we use an attention mask
-        # while feeding input.
-        self.pad_token_id = self.tokenizer.unk_token_id
+        # set it to evaluation mode, to eliminate dropouts
+        self.model.eval()
+
+        self.pad_token_id = self.model.pad_token_id
 
     def _lm_tokenize(self, text: Text) -> Tuple[List[int], List[Text]]:
         """Passes the text through the tokenizer of the language model.
@@ -164,11 +159,14 @@ class LanguageModelFeaturizer(DenseFeaturizer, GraphComponent):
             text: Text to be tokenized.
         Returns: List of token ids and token strings.
         """
-        split_token_ids = self.tokenizer.encode(text, add_special_tokens=False)
+        split_token_ids = self.tokenizer.encode(text)['input_ids']
 
         split_token_strings = self.tokenizer.convert_ids_to_tokens(split_token_ids)
 
-        return split_token_ids, split_token_strings
+        return (
+            split_token_ids[1:len(split_token_ids) - 1],
+            split_token_strings[1:len(split_token_strings) - 1],
+        )
 
     def _add_lm_specific_special_tokens(
         self, token_ids: List[List[int]]
@@ -178,7 +176,7 @@ class LanguageModelFeaturizer(DenseFeaturizer, GraphComponent):
             token_ids: List of token ids for each example in the batch.
         Returns: Augmented list of token ids for each example in the batch.
         """
-        from rasa.nlu.utils.hugging_face.registry import (
+        from .paddlenlp_registry import (
             model_special_tokens_pre_processors,
         )
 
@@ -202,7 +200,7 @@ class LanguageModelFeaturizer(DenseFeaturizer, GraphComponent):
             model specific tokenizer.
         Returns: Cleaned up token ids and token strings.
         """
-        from rasa.nlu.utils.hugging_face.registry import model_tokens_cleaners
+        from .paddlenlp_registry import model_tokens_cleaners
 
         return model_tokens_cleaners[self.model_name](split_token_ids, token_strings)
 
@@ -215,7 +213,7 @@ class LanguageModelFeaturizer(DenseFeaturizer, GraphComponent):
             language model.
         Returns: Sentence and sequence level representations.
         """
-        from rasa.nlu.utils.hugging_face.registry import (
+        from .paddlenlp_registry import (
             model_embeddings_post_processors,
         )
 
@@ -307,7 +305,7 @@ class LanguageModelFeaturizer(DenseFeaturizer, GraphComponent):
     @staticmethod
     def _compute_attention_mask(
         actual_sequence_lengths: List[int], max_input_sequence_length: int
-    ) -> np.ndarray:
+    ) -> List[List[int]]:
         """Computes a mask for padding tokens.
         This mask will be used by the language model so that it does not attend to
         padding tokens.
@@ -336,7 +334,7 @@ class LanguageModelFeaturizer(DenseFeaturizer, GraphComponent):
             )
             attention_mask.append(padded_sequence)
 
-        attention_mask = np.array(attention_mask).astype(np.float32)
+        # attention_mask = np.array(attention_mask).astype(np.float32)
         return attention_mask
 
     def _extract_sequence_lengths(
@@ -422,7 +420,9 @@ class LanguageModelFeaturizer(DenseFeaturizer, GraphComponent):
         return np.array(nonpadded_sequence_embeddings)
 
     def _compute_batch_sequence_features(
-        self, batch_attention_mask: np.ndarray, padded_token_ids: List[List[int]]
+        self,
+        batch_attention_mask: List[List[int]],
+        padded_token_ids: List[List[int]],
     ) -> np.ndarray:
         """Feeds the padded batch to the language model.
         Args:
@@ -433,15 +433,19 @@ class LanguageModelFeaturizer(DenseFeaturizer, GraphComponent):
         Returns:
             Sequence level representations from the language model.
         """
+        # https://github.com/PaddlePaddle/PaddleNLP/issues/1224
+        attention_mask = [[[mask]] for mask in batch_attention_mask]
+
         model_outputs = self.model(
-            tf.convert_to_tensor(padded_token_ids),
-            attention_mask=tf.convert_to_tensor(batch_attention_mask),
+            input_ids=paddle.to_tensor(padded_token_ids),
+            attention_mask=paddle.to_tensor(attention_mask),
         )
 
         # sequence hidden states is always the first output from all models
         sequence_hidden_states = model_outputs[0]
 
         sequence_hidden_states = sequence_hidden_states.numpy()
+
         return sequence_hidden_states
 
     def _validate_sequence_lengths(
