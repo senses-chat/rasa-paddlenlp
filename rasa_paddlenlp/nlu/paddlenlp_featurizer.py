@@ -26,7 +26,7 @@ from rasa.utils import train_utils
 
 logger = logging.getLogger(__name__)
 
-paddle.disable_static()
+# paddle.disable_static()
 
 MAX_SEQUENCE_LENGTHS = {
     "bert": 512,

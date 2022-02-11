@@ -1,31 +1,63 @@
+from __future__ import annotations
+from typing import Any, Dict, List, Optional, Text
 import logging
-from typing import Any, Dict, List, Text
 
+import rasa.shared.utils.io
+import rasa.utils.io
+
+from rasa.engine.graph import ExecutionContext
+from rasa.engine.recipes.default_recipe import DefaultV1Recipe
+from rasa.engine.storage.resource import Resource
+from rasa.engine.storage.storage import ModelStorage
 from rasa.nlu.tokenizers.tokenizer import Token, Tokenizer
+from rasa.shared.constants import DOCS_URL_COMPONENTS
 from rasa.shared.nlu.training_data.message import Message
-from paddlenlp.transformers import BertTokenizer
 
 logger = logging.getLogger(__name__)
 
-
+@DefaultV1Recipe.register(
+    DefaultV1Recipe.ComponentType.MESSAGE_TOKENIZER, is_trainable=False
+)
 class PaddleNLPTokenizer(Tokenizer):
     """PaddleNLP Transformers-based tokenizer."""
 
-    defaults = {
-        # name of the language model to load.
-        "model_name": "bert",
-        # Pre-Trained weights to be loaded(string)
-        "model_weights": "bert-wwm-ext-chinese",
-        # Flag to check whether to split intents
-        "intent_tokenization_flag": False,
-        # Symbol on which intent should be split
-        "intent_split_symbol": "_",
-        # Regular expression to detect tokens
-        "token_pattern": None,
-    }
+    @staticmethod
+    def not_supported_languages() -> Optional[List[Text]]:
+        """The languages that are not supported."""
+        return []
 
-    def __init__(self, component_config: Dict[Text, Any] = None) -> None:  # noqa: D107
-        super().__init__(component_config)
+    @staticmethod
+    def required_packages() -> List[Text]:
+        """Returns the extra python dependencies required."""
+        return ["paddlenlp", "paddle"]
+
+    @staticmethod
+    def get_default_config() -> Dict[Text, Any]:
+        """Returns the component's default config."""
+        return {
+            # name of the language model to load.
+            "model_name": "bert",
+            # Pre-Trained weights to be loaded(string)
+            "model_weights": "bert-wwm-ext-chinese",
+            # Flag to check whether to split intents
+            "intent_tokenization_flag": False,
+            # Symbol on which intent should be split
+            "intent_split_symbol": "_",
+            # Regular expression to detect tokens
+            "token_pattern": None,
+        }
+
+    def __init__(self, config: Dict[Text, Any]) -> None:
+        """Initialize the tokenizer."""
+        super().__init__(config)
+
+        if "case_sensitive" in self._config:
+            rasa.shared.utils.io.raise_warning(
+                "The option 'case_sensitive' was moved from the tokenizers to the "
+                "featurizers.",
+                docs=DOCS_URL_COMPONENTS,
+            )
+
         self._load_model_metadata()
         self._load_model_instance()
 
@@ -40,7 +72,7 @@ class PaddleNLPTokenizer(Tokenizer):
             model_weights_defaults,
         )
 
-        self.model_name = self.component_config["model_name"]
+        self.model_name = self._config["model_name"]
 
         if self.model_name not in model_class_dict:
             raise KeyError(
@@ -49,7 +81,7 @@ class PaddleNLPTokenizer(Tokenizer):
                 f"a new class inheriting from this class to support your model."
             )
 
-        self.model_weights = self.component_config["model_weights"]
+        self.model_weights = self._config["model_weights"]
 
         if not self.model_weights:
             logger.info(
@@ -71,10 +103,19 @@ class PaddleNLPTokenizer(Tokenizer):
         self.tokenizer = model_tokenizer_dict[self.model_name].from_pretrained(self.model_weights)
 
     @classmethod
-    def required_packages(cls) -> List[Text]:  # noqa: D102
-        return ["paddlenlp"]
+    def create(
+        cls,
+        config: Dict[Text, Any],
+        model_storage: ModelStorage,
+        resource: Resource,
+        execution_context: ExecutionContext,
+    ) -> PaddleNLPTokenizer:
+        """Creates a new component (see parent class for full docstring)."""
+        # Path to the dictionaries on the local filesystem.
+        return cls(config)
 
-    def tokenize(self, message: Message, attribute: Text) -> List[Token]:  # noqa: D102
+
+    def tokenize(self, message: Message, attribute: Text) -> List[Token]:
         text = message.get(attribute)
 
         # HACK: have to do this to get offset value
