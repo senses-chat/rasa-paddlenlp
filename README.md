@@ -63,6 +63,12 @@ This package took inspiration from the following projects:
 - [Rasa](https://github.com/rasahq/rasa)
 - [PaddleNLP](https://github.com/PaddlePaddle/PaddleNLP)
 
+This package was created with Cookiecutter and the `audreyr/cookiecutter-pypackage` project template.
+
+- [Cookiecutter](https://github.com/audreyr/cookiecutter)
+- [`audreyr/cookiecutter-pypackage`](https://github.com/audreyr/cookiecutter-pypackage)
+
+
 ## License
 
 [MIT](./LICENSE)
